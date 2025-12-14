@@ -47,6 +47,7 @@ export class BunSqlDatabase extends Database {
 					OR date < ${new Date(Date.now() - processor.intervalMs).toISOString()}
 				)
 				ORDER BY date ASC
+				LIMIT 20
 			`;
 
 		return queryResult.map((row: ProcessorJob & { date: Date | string }) => {

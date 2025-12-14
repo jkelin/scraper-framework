@@ -14,12 +14,18 @@ export abstract class Downloader {
 
 export class FetchDownloader extends Downloader {
 	private readonly semaphore: Semaphore;
+	private readonly headers: Record<string, string> | undefined;
 
 	constructor({
 		maxConcurrentDownloads = 10,
-	}: { maxConcurrentDownloads?: number } = {}) {
+		headers,
+	}: {
+		maxConcurrentDownloads?: number;
+		headers?: Record<string, string>;
+	} = {}) {
 		super();
 		this.semaphore = new Semaphore(maxConcurrentDownloads);
+		this.headers = headers;
 	}
 
 	public async download(url: string): Promise<Buffer> {
@@ -31,7 +37,19 @@ export class FetchDownloader extends Downloader {
 		return await this.semaphore.with(async () => {
 			logger.info({ url }, "Downloading URL");
 
-			const response = await fetch(url);
+			const fetchOptions: RequestInit = {};
+			if (this.headers) {
+				fetchOptions.headers = this.headers;
+			}
+
+			const response = await fetch(url, fetchOptions);
+
+			if (!response.ok) {
+				throw new Error(
+					`HTTP error! status: ${response.status} ${response.statusText} for URL: ${url}`,
+				);
+			}
+
 			const arrayBuffer = await response.arrayBuffer();
 			const buffer = Buffer.from(arrayBuffer);
 

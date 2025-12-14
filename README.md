@@ -1,6 +1,8 @@
-# scraper-framework
+# ez-scraper-framework
 
 My little library for writing scrapers and managing their data.
+
+![NPM Version](https://img.shields.io/npm/v/ez-scraper-framework)
 
 ## AI Description
 
