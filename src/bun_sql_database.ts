@@ -3,6 +3,7 @@ import { Database, type ProcessorJob } from "./database";
 import type { ScraperProcessor } from "./processor";
 
 async function initialize(sql: SQL, jobsTable: string) {
+	await sql`PRAGMA journal_mode = WAL`;
 	await sql`
 		CREATE TABLE IF NOT EXISTS ${sql(jobsTable)} (
 			url TEXT,
@@ -34,10 +35,31 @@ export class BunSqlDatabase extends Database {
 		this.db = load(connectionString, this.jobsTable);
 	}
 
-	public async query(processor: ScraperProcessor): Promise<ProcessorJob[]> {
+	public async query(
+		processor: ScraperProcessor,
+		currentlyProcessingUrls: Set<string>,
+	): Promise<ProcessorJob[]> {
 		const sql = await this.db;
 
-		const queryResult = await sql`
+		const processingUrlsArray = Array.from(currentlyProcessingUrls);
+
+		// Build query with NOT IN clause if there are URLs currently being processed
+		const queryResult =
+			processingUrlsArray.length > 0
+				? await sql`
+				SELECT url, version, attempt, date, processor, error FROM ${sql(this.jobsTable)}
+				WHERE processor = ${processor.name}
+				AND (
+					attempt = 0
+					OR (error IS NOT NULL AND attempt < ${processor.maxAttempts})
+					OR version <> ${processor.version}
+					OR date < ${new Date(Date.now() - processor.intervalMs).toISOString()}
+				)
+				AND url NOT IN ${sql(processingUrlsArray)}
+				ORDER BY date ASC
+				LIMIT 20
+			`
+				: await sql`
 				SELECT url, version, attempt, date, processor, error FROM ${sql(this.jobsTable)}
 				WHERE processor = ${processor.name}
 				AND (

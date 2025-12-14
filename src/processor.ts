@@ -33,6 +33,9 @@ export class ScraperProcessor extends EventEmitter<{
 
 	private readonly pendingJobs: ProcessorJob[] = [];
 
+	// HashSet of URLs currently being processed to prevent duplicate processing
+	private readonly currentlyProcessingUrls: Set<string> = new Set();
+
 	protected readonly processRaw?: (data: Buffer, url: string) => Promise<void>;
 
 	protected readonly workers: number = 10;
@@ -89,12 +92,15 @@ export class ScraperProcessor extends EventEmitter<{
 	private async getNextPendingJob(): Promise<ProcessorJob> {
 		return await this.getNextPendingJobMutex.with(async () => {
 			while (this.pendingJobs.length === 0) {
-				const jobs = await this.database.query(this as any);
+				const jobs = await this.database.query(
+					this as any,
+					this.currentlyProcessingUrls,
+				);
 
 				if (jobs.length > 0) {
 					this.pendingJobs.push(...jobs);
 				} else {
-					this.logger.debug("No pending jobs, waiting for new jobs");
+					this.logger.info("No pending jobs, waiting for new jobs");
 
 					await new Promise<void>((resolve) => {
 						const timeout = setTimeout(() => {
@@ -142,6 +148,9 @@ export class ScraperProcessor extends EventEmitter<{
 	}
 
 	private async processJob(job: ProcessorJob, rethrow: boolean) {
+		// Add URL to currently processing set to prevent duplicate processing
+		this.currentlyProcessingUrls.add(job.url);
+
 		try {
 			let data: Buffer;
 			try {
@@ -182,6 +191,8 @@ export class ScraperProcessor extends EventEmitter<{
 				});
 			}
 		} finally {
+			// Remove URL from currently processing set when done
+			this.currentlyProcessingUrls.delete(job.url);
 			this.emit(ScraperProcessorEvents.JOB_PROCESSED, job);
 		}
 	}

@@ -8,12 +8,40 @@ const logger = scraperLogger.child({
 
 export abstract class Downloader {
 	protected cache: ICache = memoryCache;
+	protected readonly semaphore: Semaphore;
 
-	abstract download(url: string): Promise<Buffer>;
+	constructor({
+		maxConcurrentDownloads = 10,
+		cache = memoryCache,
+	}: {
+		maxConcurrentDownloads?: number;
+		cache?: ICache;
+	} = {}) {
+		this.semaphore = new Semaphore(maxConcurrentDownloads);
+		this.cache = cache;
+	}
+
+	protected abstract downloadInternal(url: string): Promise<Buffer>;
+
+	public async download(url: string): Promise<Buffer> {
+		const cached = await this.cache.get(url);
+		if (cached) {
+			return cached;
+		}
+
+		return await this.semaphore.with(async () => {
+			logger.info({ url }, "Downloading URL");
+
+			const buffer = await this.downloadInternal(url);
+
+			await this.cache.set(url, buffer);
+
+			return buffer;
+		});
+	}
 }
 
 export class FetchDownloader extends Downloader {
-	private readonly semaphore: Semaphore;
 	private readonly headers: Record<string, string> | undefined;
 
 	constructor({
@@ -25,41 +53,28 @@ export class FetchDownloader extends Downloader {
 		headers?: Record<string, string>;
 		cache?: ICache;
 	} = {}) {
-		super();
-		this.semaphore = new Semaphore(maxConcurrentDownloads);
+		super({ maxConcurrentDownloads, cache });
 		this.headers = headers;
-		this.cache = cache;
 	}
 
-	public async download(url: string): Promise<Buffer> {
-		const cached = await this.cache.get(url);
-		if (cached) {
-			return cached;
+	public async downloadInternal(url: string): Promise<Buffer> {
+		const fetchOptions: RequestInit = {};
+		if (this.headers) {
+			fetchOptions.headers = this.headers;
 		}
 
-		return await this.semaphore.with(async () => {
-			logger.info({ url }, "Downloading URL");
+		const response = await fetch(url, fetchOptions);
 
-			const fetchOptions: RequestInit = {};
-			if (this.headers) {
-				fetchOptions.headers = this.headers;
-			}
+		if (!response.ok) {
+			throw new Error(
+				`HTTP error! status: ${response.status} ${response.statusText} for URL: ${url}`,
+			);
+		}
 
-			const response = await fetch(url, fetchOptions);
+		const arrayBuffer = await response.arrayBuffer();
+		const buffer = Buffer.from(arrayBuffer);
 
-			if (!response.ok) {
-				throw new Error(
-					`HTTP error! status: ${response.status} ${response.statusText} for URL: ${url}`,
-				);
-			}
-
-			const arrayBuffer = await response.arrayBuffer();
-			const buffer = Buffer.from(arrayBuffer);
-
-			await this.cache.set(url, buffer);
-
-			return buffer;
-		});
+		return buffer;
 	}
 }
 

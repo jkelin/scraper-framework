@@ -25,7 +25,10 @@ export abstract class Database extends EventEmitter<{
 }> {
 	private pendingUrls: Map<ScraperProcessor, string[]> = new Map();
 
-	abstract query(processor: ScraperProcessor): Promise<ProcessorJob[]>;
+	abstract query(
+		processor: ScraperProcessor,
+		currentlyProcessingUrls: Set<string>,
+	): Promise<ProcessorJob[]>;
 
 	protected abstract batchInsertUrls(
 		urls: string[],
@@ -86,7 +89,10 @@ export abstract class Database extends EventEmitter<{
 export class InMemoryDatabase extends Database {
 	private jobs: ProcessorJob[] = [];
 
-	public async query(processor: ScraperProcessor): Promise<ProcessorJob[]> {
+	public async query(
+		processor: ScraperProcessor,
+		currentlyProcessingUrls: Set<string>,
+	): Promise<ProcessorJob[]> {
 		return this.jobs
 			.filter((job) => job.processor === processor.name)
 			.filter(
@@ -95,7 +101,8 @@ export class InMemoryDatabase extends Database {
 					job.version !== processor.version ||
 					(job.error && job.attempt < processor.maxAttempts) ||
 					new Date(job.date) < new Date(Date.now() - processor.intervalMs),
-			);
+			)
+			.filter((job) => !currentlyProcessingUrls.has(job.url));
 	}
 
 	protected async batchInsertUrls(

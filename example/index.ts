@@ -1,10 +1,21 @@
+import SqliteCache from "cache-sqlite-lru-ttl";
 import { BunSqlDatabase, FetchDownloader, ScraperProcessor } from "../src";
 
-const downloader = new FetchDownloader({
-	maxConcurrentDownloads: 2,
+const database = new BunSqlDatabase("sqlite://./jobs.db");
+
+// Initialize SQLite cache for downloaded content
+const sqliteCacheInstance = new SqliteCache({
+	database: "./jobs.db",
+	defaultTtlMs: 1000 * 60 * 60 * 24 * 7, // 7 days TTL
+	maxItems: 100000, // LRU eviction after 10k items
+	compress: false,
 });
 
-const database = new BunSqlDatabase("sqlite://./jobs.db");
+// Create downloader with SQLite cache
+const downloader = new FetchDownloader({
+	maxConcurrentDownloads: 2,
+	cache: sqliteCacheInstance,
+});
 
 // Hacker News API base URL
 const HN_API_BASE = "https://hacker-news.firebaseio.com/v0";
