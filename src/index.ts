@@ -4,3 +4,4 @@ export * from "./database";
 export * from "./downloader";
 export * from "./logger";
 export * from "./processor";
+export * from "./sqlite_cache";

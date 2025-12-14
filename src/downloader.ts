@@ -19,13 +19,16 @@ export class FetchDownloader extends Downloader {
 	constructor({
 		maxConcurrentDownloads = 10,
 		headers,
+		cache = memoryCache,
 	}: {
 		maxConcurrentDownloads?: number;
 		headers?: Record<string, string>;
+		cache?: ICache;
 	} = {}) {
 		super();
 		this.semaphore = new Semaphore(maxConcurrentDownloads);
 		this.headers = headers;
+		this.cache = cache;
 	}
 
 	public async download(url: string): Promise<Buffer> {
