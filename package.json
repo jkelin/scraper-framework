@@ -2,7 +2,21 @@
   "name": "ez-scraper-framework",
   "module": "src/index.ts",
   "type": "module",
-  "version": "1.1.0",
+  "version": "1.1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jkelin/ez-scraper-framework.git"
+  },
+  "author": {
+    "name": "Jan Kelin",
+    "email": "jan@jkelin.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "scraper",
+    "framework",
+    "web-scraping"
+  ],
   "devDependencies": {
     "@types/bun": "latest",
     "cheerio": "^1.1.2"
